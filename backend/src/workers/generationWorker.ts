@@ -2,7 +2,7 @@ import { Worker, Job } from "bullmq";
 import { getRedisClient } from "../utils/redis";
 import { Assignment } from "../models/Assignment";
 import { QuestionPaper } from "../models/QuestionPaper";
-import { generateQuestionPaper } from "../ai/geminiService";
+import { generateQuestionPaper } from "../ai/openrouterService";
 import { emitToAssignment } from "../socket/socketHandler";
 
 interface GenerationJobData {
