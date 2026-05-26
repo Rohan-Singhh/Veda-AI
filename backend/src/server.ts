@@ -9,6 +9,7 @@ import { getGenerationQueue } from "./queues/generationQueue";
 import { getPdfQueue } from "./queues/pdfQueue";
 import { startPdfWorker } from "./workers/pdfWorker";
 import assignmentRoutes from "./routes/assignmentRoutes";
+import { errorHandler } from "./middleware/errorHandler";
 import path from "path";
 
 async function main() {
@@ -32,6 +33,7 @@ async function main() {
     res.json({ message: "VedaAI API Running", status: "ok" });
   });
   app.use("/api/assignments", assignmentRoutes);
+  app.use(errorHandler);
 
   // Initialize services
   await connectDB();

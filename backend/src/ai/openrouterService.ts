@@ -1,27 +1,9 @@
 import { config } from "../utils/config";
 import { IAssignment } from "../models/Assignment";
 import { getRedisClient } from "../utils/redis";
+import { sanitizeGeneratedPaper } from "../services/questionPaperSanitizer";
+import { GeneratedPaper } from "../validators/questionPaperValidator";
 import crypto from "crypto";
-
-interface GeneratedPaper {
-  title: string;
-  subject: string;
-  topic: string;
-  totalMarks: number;
-  duration: string;
-  sections: {
-    title: string;
-    instruction: string;
-    questions: {
-      questionNumber: number;
-      text: string;
-      type: string;
-      difficulty: "easy" | "medium" | "hard";
-      marks: number;
-      options?: string[];
-    }[];
-  }[];
-}
 
 export async function generateQuestionPaper(
   assignment: IAssignment
@@ -190,7 +172,7 @@ RESPOND WITH ONLY VALID JSON in this exact format (no markdown, no code blocks, 
   }
   cleanedText = cleanedText.trim();
 
-  let parsed: GeneratedPaper;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(cleanedText);
   } catch {
@@ -198,28 +180,12 @@ RESPOND WITH ONLY VALID JSON in this exact format (no markdown, no code blocks, 
     throw new Error("AI returned invalid JSON. Please try again.");
   }
 
-  // Validate and fix the response
-  if (!parsed.sections || !Array.isArray(parsed.sections)) {
-    throw new Error("AI response missing sections array");
-  }
-
-  // Ensure all questions have required fields
-  let questionNum = 1;
-  for (const section of parsed.sections) {
-    if (!section.questions) section.questions = [];
-    for (const q of section.questions) {
-      q.questionNumber = questionNum++;
-      if (!q.difficulty) q.difficulty = "medium";
-      if (!q.marks) q.marks = 1;
-      if (!q.type) q.type = "short_answer";
-    }
-  }
-
-  parsed.subject = assignment.subject;
-  parsed.topic = assignment.topic;
-  parsed.totalMarks = assignment.totalMarks;
-
-  return parsed;
+  return sanitizeGeneratedPaper(parsed, {
+    subject: assignment.subject,
+    topic: assignment.topic,
+    totalMarks: assignment.totalMarks,
+    numberOfQuestions: assignment.numberOfQuestions,
+  });
 }
 
 function getDifficultyDistribution(

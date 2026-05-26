@@ -3,20 +3,25 @@ import {
   createAssignment,
   getAssignment,
   getAllAssignments,
+  getAssignmentStatus,
   getQuestionPaper,
   regeneratePaper,
   generatePdf,
   deleteAssignment,
 } from "../controllers/assignmentController";
+import { asyncHandler } from "../middleware/asyncHandler";
+import { validateObjectIdParam } from "../middleware/validateObjectId";
 
 const router = Router();
+const validateAssignmentId = validateObjectIdParam("id");
 
-router.post("/", createAssignment);
-router.get("/", getAllAssignments);
-router.get("/:id", getAssignment);
-router.delete("/:id", deleteAssignment);
-router.get("/:id/paper", getQuestionPaper);
-router.post("/:id/regenerate", regeneratePaper);
-router.post("/:id/pdf", generatePdf);
+router.post("/", asyncHandler(createAssignment));
+router.get("/", asyncHandler(getAllAssignments));
+router.get("/:id/status", validateAssignmentId, asyncHandler(getAssignmentStatus));
+router.get("/:id/paper", validateAssignmentId, asyncHandler(getQuestionPaper));
+router.post("/:id/regenerate", validateAssignmentId, asyncHandler(regeneratePaper));
+router.post("/:id/pdf", validateAssignmentId, asyncHandler(generatePdf));
+router.get("/:id", validateAssignmentId, asyncHandler(getAssignment));
+router.delete("/:id", validateAssignmentId, asyncHandler(deleteAssignment));
 
 export default router;

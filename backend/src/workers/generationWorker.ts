@@ -4,6 +4,7 @@ import { Assignment } from "../models/Assignment";
 import { QuestionPaper } from "../models/QuestionPaper";
 import { generateQuestionPaper } from "../ai/openrouterService";
 import { emitToAssignment } from "../socket/socketHandler";
+import { setAssignmentJobState } from "../services/jobStateService";
 
 interface GenerationJobData {
   assignmentId: string;
@@ -22,6 +23,12 @@ export async function startGenerationWorker(): Promise<Worker> {
         // Update status to processing
         await Assignment.findByIdAndUpdate(assignmentId, {
           status: "processing",
+          errorMessage: undefined,
+        });
+        await setAssignmentJobState(assignmentId, {
+          status: "processing",
+          progress: 20,
+          message: "Preparing assignment context",
         });
 
         // Notify frontend
@@ -38,9 +45,19 @@ export async function startGenerationWorker(): Promise<Worker> {
         }
 
         // Generate questions using AI
+        await setAssignmentJobState(assignmentId, {
+          status: "processing",
+          progress: 45,
+          message: "Generating structured question paper",
+        });
         const paperData = await generateQuestionPaper(assignment);
 
         // Save to MongoDB
+        await setAssignmentJobState(assignmentId, {
+          status: "processing",
+          progress: 80,
+          message: "Saving generated question paper",
+        });
         const paper = await QuestionPaper.findOneAndUpdate(
           { assignmentId },
           { ...paperData, assignmentId },
@@ -63,6 +80,12 @@ export async function startGenerationWorker(): Promise<Worker> {
         // Update assignment status
         await Assignment.findByIdAndUpdate(assignmentId, {
           status: "completed",
+          errorMessage: undefined,
+        });
+        await setAssignmentJobState(assignmentId, {
+          status: "completed",
+          progress: 100,
+          message: "Question paper ready",
         });
 
         // Notify frontend
@@ -83,6 +106,12 @@ export async function startGenerationWorker(): Promise<Worker> {
         // Update status to failed
         await Assignment.findByIdAndUpdate(assignmentId, {
           status: "failed",
+          errorMessage: error.message,
+        });
+        await setAssignmentJobState(assignmentId, {
+          status: "failed",
+          progress: 100,
+          message: "Question generation failed",
           errorMessage: error.message,
         });
 

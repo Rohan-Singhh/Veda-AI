@@ -2,6 +2,7 @@ import { Worker, Job } from "bullmq";
 import { getRedisClient } from "../utils/redis";
 import { QuestionPaper } from "../models/QuestionPaper";
 import { emitToAssignment } from "../socket/socketHandler";
+import { setPdfJobState } from "../services/jobStateService";
 import puppeteer from "puppeteer";
 import ejs from "ejs";
 import path from "path";
@@ -18,7 +19,7 @@ export async function startPdfWorker(): Promise<Worker> {
     "pdf-generation",
     async (job: Job<PdfJobData>) => {
       const { assignmentId } = job.data;
-      console.log(`📄 Generating PDF for assignment: ${assignmentId}`);
+      console.log(`Generating PDF for assignment: ${assignmentId}`);
 
       try {
         const paper = await QuestionPaper.findOne({ assignmentId });
@@ -26,28 +27,36 @@ export async function startPdfWorker(): Promise<Worker> {
           throw new Error(`Question paper not found for assignment: ${assignmentId}`);
         }
 
-        // Emit processing event
+        await setPdfJobState(assignmentId, {
+          status: "processing",
+          progress: 25,
+        });
         emitToAssignment(assignmentId, "pdf:processing", { status: "processing" });
 
-        // Ensure directory exists
         const pdfDir = path.join(__dirname, "../../public/pdfs");
         if (!fs.existsSync(pdfDir)) {
           fs.mkdirSync(pdfDir, { recursive: true });
         }
 
-        // Render HTML using EJS
+        await setPdfJobState(assignmentId, {
+          status: "processing",
+          progress: 55,
+        });
         const templatePath = path.join(__dirname, "../templates/pdfTemplate.ejs");
         const html = await ejs.renderFile(templatePath, { paper: paper.toJSON() });
 
-        // Generate PDF using Puppeteer
+        await setPdfJobState(assignmentId, {
+          status: "processing",
+          progress: 80,
+        });
         const browser = await puppeteer.launch({
           headless: true,
           args: ["--no-sandbox", "--disable-setuid-sandbox"],
         });
         const page = await browser.newPage();
-        
+
         await page.setContent(html, { waitUntil: "domcontentloaded" });
-        
+
         const pdfPath = path.join(pdfDir, `${assignmentId}.pdf`);
         await page.pdf({
           path: pdfPath,
@@ -58,25 +67,33 @@ export async function startPdfWorker(): Promise<Worker> {
 
         await browser.close();
 
-        // Update database with PDF path
         const pdfUrl = `/pdfs/${assignmentId}.pdf`;
-        
-        // Let frontend know it's ready
-        emitToAssignment(assignmentId, "pdf:completed", { 
+        await setPdfJobState(assignmentId, {
           status: "completed",
-          url: pdfUrl
+          progress: 100,
+          url: pdfUrl,
         });
 
-        console.log(`✅ PDF generated for assignment: ${assignmentId}`);
+        emitToAssignment(assignmentId, "pdf:completed", {
+          status: "completed",
+          url: pdfUrl,
+        });
+
+        console.log(`PDF generated for assignment: ${assignmentId}`);
         return { url: pdfUrl };
       } catch (error: any) {
-        console.error(`❌ PDF generation failed for: ${assignmentId}`, error.message);
-        
-        emitToAssignment(assignmentId, "pdf:failed", { 
-          status: "failed", 
-          error: error.message 
+        console.error(`PDF generation failed for: ${assignmentId}`, error.message);
+        await setPdfJobState(assignmentId, {
+          status: "failed",
+          progress: 100,
+          errorMessage: error.message,
         });
-        
+
+        emitToAssignment(assignmentId, "pdf:failed", {
+          status: "failed",
+          error: error.message,
+        });
+
         throw error;
       }
     },
@@ -87,13 +104,13 @@ export async function startPdfWorker(): Promise<Worker> {
   );
 
   worker.on("completed", (job) => {
-    console.log(`✅ Worker: PDF Job ${job.id} completed`);
+    console.log(`Worker: PDF Job ${job.id} completed`);
   });
 
   worker.on("failed", (job, err) => {
-    console.error(`❌ Worker: PDF Job ${job?.id} failed:`, err.message);
+    console.error(`Worker: PDF Job ${job?.id} failed:`, err.message);
   });
 
-  console.log("✅ PDF worker started");
+  console.log("PDF worker started");
   return worker;
 }
