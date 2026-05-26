@@ -27,6 +27,7 @@ pnpm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+.local-git-backups/
 
 # Local certificates/keys
 *.pem
