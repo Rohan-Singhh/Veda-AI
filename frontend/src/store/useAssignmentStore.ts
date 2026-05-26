@@ -3,7 +3,7 @@ import {
   AssignmentFormData,
   AssignmentResponse,
   PaperData,
-} from "../services/api";
+} from "@/types/assignment";
 
 export type AppStatus =
   | "idle"

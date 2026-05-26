@@ -1,14 +1,12 @@
 "use client";
 
 import React from "react";
-import { PaperData } from "../services/api";
+import { DIFFICULTY_LABEL } from "@/constants/assignment";
+import { PaperData } from "@/types/assignment";
 
 interface Props {
   paper: PaperData;
 }
-
-const DIFF_LABEL: Record<string, string> = { easy: "Easy", medium: "Moderate", hard: "Challenging" };
-const DIFF_CLASS: Record<string, string> = { easy: "badge-easy", medium: "badge-medium", hard: "badge-hard" };
 
 export default function QuestionPaperView({ paper }: Props) {
   return (
@@ -64,7 +62,7 @@ export default function QuestionPaperView({ paper }: Props) {
                 <div className="qpv-question-row">
                   {/* Difficulty inline badge */}
                   <span className={`qpv-diff-tag qpv-diff-${q.difficulty}`}>
-                    {DIFF_LABEL[q.difficulty] ?? q.difficulty}
+                    {DIFFICULTY_LABEL[q.difficulty] ?? q.difficulty}
                   </span>
                   {/* Question text */}
                   <span className="qpv-question-text">{q.text}</span>

@@ -5,37 +5,32 @@ import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { useAssignmentStore } from "@/store/useAssignmentStore";
 import { createAssignment } from "@/services/api";
+import { QUESTION_TYPE_OPTIONS, QUESTION_TYPE_TO_API } from "@/constants/assignment";
+import {
+  createDefaultQuestionRows,
+  createQuestionRow,
+  QuestionRow,
+} from "@/lib/questionRows";
+import { AssignmentDifficulty } from "@/types/assignment";
 
-const QUESTION_TYPE_OPTIONS = [
-  "Multiple Choice Questions",
-  "Short Questions",
-  "Long Questions",
-  "True/False Questions",
-  "Fill in the Blanks",
-  "Diagram/Graph-Based Questions",
-  "Numerical Problems",
-  "Essay Questions",
-  "Match the Following",
-  "Comprehension Based",
-];
-
-interface QuestionRow {
-  id: string;
-  type: string;
-  count: number;
-  marks: number;
-  showDropdown: boolean;
+interface SpeechRecognitionResultLike {
+  0: { transcript: string };
 }
 
-function createRow(type = "Multiple Choice Questions"): QuestionRow {
-  return {
-    id: Math.random().toString(36).slice(2),
-    type,
-    count: 4,
-    marks: 1,
-    showDropdown: false,
-  };
+interface SpeechRecognitionEventLike {
+  results: Iterable<SpeechRecognitionResultLike>;
 }
+
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 export default function CreatePage() {
   const router = useRouter();
@@ -48,32 +43,27 @@ export default function CreatePage() {
   const [dragOver, setDragOver] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [dueDate, setDueDate] = useState("");
-  const [questionRows, setQuestionRows] = useState<QuestionRow[]>([
-    { ...createRow("Multiple Choice Questions"), count: 4, marks: 1 },
-    { ...createRow("Short Questions"), count: 3, marks: 2 },
-    { ...createRow("Diagram/Graph-Based Questions"), count: 5, marks: 5 },
-    { ...createRow("Numerical Problems"), count: 5, marks: 5 },
-  ]);
+  const [questionRows, setQuestionRows] = useState<QuestionRow[]>(createDefaultQuestionRows);
   const [additionalInfo, setAdditionalInfo] = useState("");
   const [isListening, setIsListening] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   // Step 2 state
   const [subject, setSubject] = useState("");
   const [topic, setTopic] = useState("");
-  const [difficulty, setDifficulty] = useState("mixed");
+  const [difficulty, setDifficulty] = useState<AssignmentDifficulty>("mixed");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
   React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const sub = params.get("subject");
-      const top = params.get("topic");
+    const params = new URLSearchParams(window.location.search);
+    const sub = params.get("subject");
+    const top = params.get("topic");
+    window.requestAnimationFrame(() => {
       if (sub) setSubject(sub);
       if (top) setTopic(top);
-    }
+    });
   }, []);
 
   // ── File upload helpers ──────────────────────────────────────
@@ -109,7 +99,7 @@ export default function CreatePage() {
   const addRow = () => {
     setQuestionRows((prev) => [
       ...prev,
-      { ...createRow("Multiple Choice Questions"), count: 4, marks: 1 },
+      { ...createQuestionRow("Multiple Choice Questions"), count: 4, marks: 1 },
     ]);
   };
 
@@ -119,8 +109,14 @@ export default function CreatePage() {
   // ── Voice input ──────────────────────────────────────────────
   const toggleVoice = () => {
     const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+      (window as Window & {
+        SpeechRecognition?: SpeechRecognitionConstructor;
+        webkitSpeechRecognition?: SpeechRecognitionConstructor;
+      }).SpeechRecognition ||
+      (window as Window & {
+        SpeechRecognition?: SpeechRecognitionConstructor;
+        webkitSpeechRecognition?: SpeechRecognitionConstructor;
+      }).webkitSpeechRecognition;
     if (!SpeechRecognition) return alert("Speech recognition not supported.");
 
     if (isListening) {
@@ -132,9 +128,9 @@ export default function CreatePage() {
     const rec = new SpeechRecognition();
     rec.continuous = true;
     rec.interimResults = false;
-    rec.onresult = (e: any) => {
+    rec.onresult = (e) => {
       const transcript = Array.from(e.results)
-        .map((r: any) => r[0].transcript)
+        .map((r) => r[0].transcript)
         .join(" ");
       setAdditionalInfo((prev) => (prev ? prev + " " + transcript : transcript));
     };
@@ -160,15 +156,9 @@ export default function CreatePage() {
     setIsSubmitting(true);
     setStatus("submitting");
 
-    // Map UI labels to backend enum values
-    const typeMap: Record<string, string> = {
-      "Multiple Choice Questions": "mcq",
-      "Short Questions": "short_answer",
-      "Long Questions": "long_answer",
-      "True/False Questions": "true_false",
-      "Fill in the Blanks": "fill_blank",
-    };
-    const questionTypes = [...new Set(questionRows.map((r) => typeMap[r.type] || "short_answer"))];
+    const questionTypes = [
+      ...new Set(questionRows.map((r) => QUESTION_TYPE_TO_API[r.type] || "short_answer")),
+    ];
 
     // Read uploaded file text if any
     let uploadedFileText = "";
@@ -186,14 +176,14 @@ export default function CreatePage() {
         questionTypes,
         numberOfQuestions: totalQuestions,
         totalMarks,
-        difficulty: difficulty as any,
+        difficulty,
         additionalInstructions: additionalInfo || undefined,
         uploadedFileText: uploadedFileText || undefined,
       });
       setCurrentAssignment(assignment);
       setStatus("processing");
       router.push(`/assignment/${assignment._id}/processing`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Submission error:", err);
       setStatus("failed");
       setSubmitError("Something went wrong. Please try again.");
@@ -426,7 +416,7 @@ export default function CreatePage() {
             <div className="ca-field-group" style={{ marginTop: 16 }}>
               <label className="ca-label">Difficulty Level</label>
               <div className="ca-difficulty-grid">
-                {["easy", "medium", "hard", "mixed"].map((d) => (
+                {(["easy", "medium", "hard", "mixed"] as AssignmentDifficulty[]).map((d) => (
                   <button
                     key={d}
                     type="button"

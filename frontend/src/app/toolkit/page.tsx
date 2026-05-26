@@ -3,44 +3,54 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import { QUESTION_TYPE_LABEL } from "@/constants/assignment";
+import { getAssignments } from "@/services/api";
+import { AssignmentListItem } from "@/types/assignment";
 
-interface AssignmentItem {
-  _id: string;
-  subject: string;
-  topic: string;
-  questionTypes: string[];
-  numberOfQuestions: number;
-  totalMarks: number;
-  difficulty: string;
+interface RubricItem {
+  criteria: string;
+  descriptions: string[];
+}
+
+interface LessonTimelineItem {
+  time: string;
+  activity: string;
+  desc: string;
+}
+
+interface LessonPlan {
+  title: string;
+  grade: string;
+  duration: string;
+  objectives: string[];
+  materials: string[];
+  timeline: LessonTimelineItem[];
 }
 
 export default function ToolkitPage() {
   const [activeTab, setActiveTab] = useState<"directory" | "rubric" | "lesson" | "analytics">("directory");
-  const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentListItem[]>([]);
   const [loadingAnalytics, setLoadingAnalytics] = useState(true);
 
   // Rubric Builder Form State
   const [rubricTask, setRubricTask] = useState("");
   const [rubricScale, setRubricScale] = useState("4");
   const [rubricCriteria, setRubricCriteria] = useState("Content Accuracy, Organization, Mechanics");
-  const [generatedRubric, setGeneratedRubric] = useState<any[] | null>(null);
+  const [generatedRubric, setGeneratedRubric] = useState<RubricItem[] | null>(null);
   const [generatingRubric, setGeneratingRubric] = useState(false);
 
   // Lesson Plan Form State
   const [lessonTopic, setLessonTopic] = useState("");
   const [lessonGrade, setLessonGrade] = useState("Grade 9");
   const [lessonDuration, setLessonDuration] = useState("45 Minutes");
-  const [generatedLesson, setGeneratedLesson] = useState<any | null>(null);
+  const [generatedLesson, setGeneratedLesson] = useState<LessonPlan | null>(null);
   const [generatingLesson, setGeneratingLesson] = useState(false);
 
   useEffect(() => {
     if (activeTab === "analytics" && assignments.length === 0) {
       const fetch_ = async () => {
         try {
-          const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-          const res = await fetch(`${API_BASE}/assignments`);
-          const data = await res.json();
-          setAssignments(data.assignments || []);
+          setAssignments(await getAssignments());
         } catch (err) {
           console.error(err);
         } finally {
@@ -132,7 +142,7 @@ export default function ToolkitPage() {
         
         {/* Header */}
         <div style={{ borderBottom: "1px solid #e5e7eb", paddingBottom: 20, marginBottom: 30 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: "#111827", marginBottom: 6 }}>AI Teacher's Toolkit</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: "#111827", marginBottom: 6 }}>AI Teacher&apos;s Toolkit</h1>
           <p style={{ fontSize: 14, color: "#6b7280" }}>Access intelligent widgets to automate curriculum mapping, rubric construction, and lesson planning.</p>
         </div>
 
@@ -388,7 +398,7 @@ export default function ToolkitPage() {
                   <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ margin: "0 auto 12px" }}>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
                   </svg>
-                  <p style={{ fontSize: 13 }}>Fill details on the left and click "Generate Rubric Grid".</p>
+                  <p style={{ fontSize: 13 }}>Fill details on the left and click &quot;Generate Rubric Grid&quot;.</p>
                 </div>
               )}
             </div>
@@ -511,7 +521,7 @@ export default function ToolkitPage() {
                   <div>
                     <h4 style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 8 }}>Suggested Timeline</h4>
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {generatedLesson.timeline.map((item: any, i: number) => (
+                      {generatedLesson.timeline.map((item, i) => (
                         <div key={i} style={{ display: "flex", gap: 12, background: "#f9fafb", padding: 12, borderRadius: 8 }}>
                           <span style={{ fontSize: 12, fontWeight: 700, color: "#e8612d", width: 70, flexShrink: 0 }}>
                             {item.time}
@@ -535,7 +545,7 @@ export default function ToolkitPage() {
                   <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ margin: "0 auto 12px" }}>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  <p style={{ fontSize: 13 }}>Fill details on the left and click "Generate Lesson Plan".</p>
+                  <p style={{ fontSize: 13 }}>Fill details on the left and click &quot;Generate Lesson Plan&quot;.</p>
                 </div>
               )}
             </div>
@@ -613,18 +623,10 @@ export default function ToolkitPage() {
                     {Array.from(new Set(assignments.flatMap(a => a.questionTypes || []))).map((type, idx) => {
                       const count = assignments.filter(a => a.questionTypes?.includes(type)).length;
                       
-                      const typeLabels: Record<string, string> = {
-                        mcq: "MCQ",
-                        short_answer: "Short Answer",
-                        long_answer: "Long Answer",
-                        true_false: "True/False",
-                        fill_blank: "Fill in Blanks"
-                      };
-
                       return (
                         <div key={idx} style={{ padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb", flex: "1 1 120px", display: "flex", flexDirection: "column", gap: 4 }}>
                           <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>
-                            {typeLabels[type] || type}
+                            {QUESTION_TYPE_LABEL[type] || type}
                           </span>
                           <span style={{ fontSize: 16, fontWeight: 800, color: "#111827" }}>
                             {count} papers

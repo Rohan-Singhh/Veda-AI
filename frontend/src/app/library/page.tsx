@@ -4,29 +4,19 @@ import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
-
-interface AssignmentItem {
-  _id: string;
-  subject: string;
-  topic: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  createdAt: string;
-  dueDate: string;
-  totalMarks: number;
-  numberOfQuestions: number;
-  difficulty: string;
-}
-
-const STATUS_COLOR: Record<string, { bg: string; text: string; label: string }> = {
-  completed:  { bg: "#ecfdf5", text: "#059669", label: "Ready" },
-  processing: { bg: "#eff6ff", text: "#3b82f6", label: "Processing" },
-  pending:    { bg: "#fefce8", text: "#d97706", label: "Queued" },
-  failed:     { bg: "#fff1f2", text: "#ef4444", label: "Failed" },
-};
+import { getBackendFileUrl } from "@/config/api";
+import { STATUS_META } from "@/constants/assignment";
+import {
+  deleteAssignment,
+  generatePdfToBackend,
+  getAssignments,
+} from "@/services/api";
+import { AssignmentListItem } from "@/types/assignment";
+import { formatDate } from "@/utils/date";
 
 export default function LibraryPage() {
   const router = useRouter();
-  const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeSubject, setActiveSubject] = useState("All");
@@ -38,10 +28,7 @@ export default function LibraryPage() {
   useEffect(() => {
     const fetch_ = async () => {
       try {
-        const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-        const res = await fetch(`${API_BASE}/assignments`);
-        const data = await res.json();
-        setAssignments(data.assignments || []);
+        setAssignments(await getAssignments());
       } catch (err) {
         console.error("Failed to fetch assignments", err);
       } finally {
@@ -66,8 +53,7 @@ export default function LibraryPage() {
     setMenuOpen(null);
     if (!confirm("Are you sure you want to delete this assessment?")) return;
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-      await fetch(`${API_BASE}/assignments/${id}`, { method: "DELETE" });
+      await deleteAssignment(id);
       setAssignments((prev) => prev.filter((a) => a._id !== id));
     } catch {
       setAssignments((prev) => prev.filter((a) => a._id !== id));
@@ -77,22 +63,19 @@ export default function LibraryPage() {
   const handleDownloadPDF = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setDownloadingId(id);
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
     try {
-      const res = await fetch(`${API_BASE}/assignments/${id}/pdf`, { method: "POST" });
-      const result = await res.json();
+      const result = await generatePdfToBackend(id);
       
       if (!result.url) {
         // Poll for PDF completion
         const poll = setInterval(async () => {
           try {
-            const checkRes = await fetch(`${API_BASE}/assignments/${id}/pdf`, { method: "POST" });
-            const checkResult = await checkRes.json();
+            const checkResult = await generatePdfToBackend(id);
             if (checkResult.url) {
               clearInterval(poll);
               setDownloadingId(null);
-              window.open(`http://localhost:5000${checkResult.url}`, "_blank");
+              window.open(getBackendFileUrl(checkResult.url), "_blank");
             }
           } catch {
             clearInterval(poll);
@@ -101,18 +84,12 @@ export default function LibraryPage() {
         }, 2000);
       } else {
         setDownloadingId(null);
-        window.open(`http://localhost:5000${result.url}`, "_blank");
+        window.open(getBackendFileUrl(result.url), "_blank");
       }
     } catch {
       setDownloadingId(null);
       alert("Could not generate PDF right now. Try opening the paper first.");
     }
-  };
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return "—";
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   };
 
   // Get unique subjects dynamically
@@ -255,7 +232,8 @@ export default function LibraryPage() {
         ) : (
           <div ref={menuRef} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 20 }}>
             {filtered.map((item) => {
-              const status = STATUS_COLOR[item.status] ?? STATUS_COLOR.pending;
+              const statusMeta = STATUS_META[item.status] ?? STATUS_META.pending;
+              const status = { ...statusMeta, label: statusMeta.libraryLabel };
               const isCompleted = item.status === "completed";
               const isDownloader = downloadingId === item._id;
 

@@ -6,13 +6,15 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import QuestionPaperView from "@/components/QuestionPaperView";
 import { useAssignmentStore } from "@/store/useAssignmentStore";
+import { getBackendFileUrl } from "@/config/api";
 import {
   getAssignment,
   getQuestionPaper,
   regeneratePaper,
   generatePdfToBackend,
-  PaperData,
 } from "@/services/api";
+import { PaperData } from "@/types/assignment";
+import { getErrorMessage } from "@/utils/errors";
 
 interface AssignmentPageProps {
   params: Promise<{ id: string }>;
@@ -31,7 +33,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   useEffect(() => {
-    if (paper) { setLoading(false); return; }
+    if (paper) return;
 
     const fetchData = async () => {
       try {
@@ -52,8 +54,8 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
         setPaper(paperData);
         setGeneratedPaper(paperData);
         setLoading(false);
-      } catch (err: any) {
-        setError(err.response?.data?.error || "Failed to load question paper.");
+      } catch (err: unknown) {
+        setError(getErrorMessage(err, "Failed to load question paper."));
         setLoading(false);
       }
     };
@@ -84,7 +86,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
             if (res.url) {
               clearInterval(poll);
               setIsGeneratingPdf(false);
-              window.open(`http://localhost:5000${res.url}`, "_blank");
+              window.open(getBackendFileUrl(res.url), "_blank");
             }
           } catch {
             clearInterval(poll);
@@ -93,7 +95,7 @@ export default function AssignmentPage({ params }: AssignmentPageProps) {
         }, 2000);
       } else {
         setIsGeneratingPdf(false);
-        window.open(`http://localhost:5000${result.url}`, "_blank");
+        window.open(getBackendFileUrl(result.url), "_blank");
       }
     } catch {
       setIsGeneratingPdf(false);

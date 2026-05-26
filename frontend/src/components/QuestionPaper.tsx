@@ -2,7 +2,7 @@
 
 import React from "react";
 import Badge from "./ui/Badge";
-import { PaperData } from "../services/api";
+import { PaperData } from "@/types/assignment";
 
 interface QuestionPaperProps {
   paper: PaperData;

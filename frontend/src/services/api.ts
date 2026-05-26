@@ -1,6 +1,11 @@
 import axios from "axios";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+import { API_BASE } from "@/config/api";
+import {
+  AssignmentFormData,
+  AssignmentListItem,
+  AssignmentResponse,
+  PaperData,
+} from "@/types/assignment";
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -9,65 +14,23 @@ const api = axios.create({
   },
 });
 
-export interface AssignmentFormData {
-  subject: string;
-  topic: string;
-  dueDate: string;
-  questionTypes: string[];
-  numberOfQuestions: number;
-  totalMarks: number;
-  difficulty: "easy" | "medium" | "hard" | "mixed";
-  additionalInstructions?: string;
-  uploadedFileText?: string;
-}
-
-export interface AssignmentResponse {
-  _id: string;
-  subject: string;
-  topic: string;
-  dueDate: string;
-  questionTypes: string[];
-  numberOfQuestions: number;
-  totalMarks: number;
-  difficulty: string;
-  additionalInstructions: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  errorMessage?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface QuestionData {
-  questionNumber: number;
-  text: string;
-  type: string;
-  difficulty: "easy" | "medium" | "hard";
-  marks: number;
-  options?: string[];
-}
-
-export interface SectionData {
-  title: string;
-  instruction: string;
-  questions: QuestionData[];
-}
-
-export interface PaperData {
-  _id: string;
-  assignmentId: string;
-  title: string;
-  subject: string;
-  topic: string;
-  totalMarks: number;
-  duration: string;
-  sections: SectionData[];
-}
+export type {
+  AssignmentFormData,
+  AssignmentListItem,
+  AssignmentResponse,
+  PaperData,
+};
 
 export async function createAssignment(
   data: AssignmentFormData
 ): Promise<AssignmentResponse> {
   const res = await api.post("/assignments", data);
   return res.data.assignment;
+}
+
+export async function getAssignments(): Promise<AssignmentListItem[]> {
+  const res = await api.get("/assignments");
+  return res.data.assignments || [];
 }
 
 export async function getAssignment(id: string): Promise<AssignmentResponse> {

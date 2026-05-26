@@ -4,26 +4,13 @@ import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
-
-interface AssignmentItem {
-  _id: string;
-  subject: string;
-  topic: string;
-  status: string;
-  createdAt: string;
-  dueDate: string;
-}
-
-const STATUS_COLOR: Record<string, { bg: string; text: string; label: string }> = {
-  completed:  { bg: "#ecfdf5", text: "#059669", label: "Done" },
-  processing: { bg: "#eff6ff", text: "#3b82f6", label: "Processing" },
-  pending:    { bg: "#fefce8", text: "#d97706", label: "Pending" },
-  failed:     { bg: "#fff1f2", text: "#ef4444", label: "Failed" },
-};
+import { deleteAssignment, getAssignments } from "@/services/api";
+import { AssignmentListItem } from "@/types/assignment";
+import { formatDate } from "@/utils/date";
 
 export default function HomePage() {
   const router = useRouter();
-  const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
@@ -32,10 +19,7 @@ export default function HomePage() {
   useEffect(() => {
     const fetch_ = async () => {
       try {
-        const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-        const res = await fetch(`${API_BASE}/assignments`);
-        const data = await res.json();
-        setAssignments(data.assignments || []);
+        setAssignments(await getAssignments());
       } catch { /* silently fail */ }
       finally { setLoading(false); }
     };
@@ -55,19 +39,12 @@ export default function HomePage() {
   const handleDelete = async (id: string) => {
     setMenuOpen(null);
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-      await fetch(`${API_BASE}/assignments/${id}`, { method: "DELETE" });
+      await deleteAssignment(id);
       setAssignments((prev) => prev.filter((a) => a._id !== id));
     } catch {
       // fallback to state removal if api fails
       setAssignments((prev) => prev.filter((a) => a._id !== id));
     }
-  };
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return "—";
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   };
 
   const filtered = assignments.filter(
